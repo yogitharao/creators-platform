@@ -1,10 +1,4 @@
-<<<<<<< Updated upstream
-function Home() {
-  return (
-    <div>
-      <h1>Welcome to Creator Platform</h1>
-      <p>Share your creativity with the world.</p>
-=======
+
 import { Link } from 'react-router-dom';
 import ConnectionTest from '../components/common/ConnectionTest';
 
@@ -50,7 +44,6 @@ const Home = () => {
           </div>
         </div>
       </div>
->>>>>>> Stashed changes
     </div>
   );
 };
