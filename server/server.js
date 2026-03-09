@@ -1,26 +1,39 @@
-import express from "express";
-import mongoose from "mongoose";
-import dotenv from "dotenv";
-import userRoutes from "./routes/userRoutes.js";
+import express from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import connectDB from './config/database.js';
+import userRoutes from './routes/userRoutes.js';
 
+// Load environment variables
 dotenv.config();
 
+// Connect to database
+connectDB();
+
 const app = express();
-
-app.use(express.json());
-
-mongoose.connect(process.env.MONGODB_URI)
-.then(() => console.log("MongoDB connected successfully"))
-.catch((err) => console.log(err));
-
-app.use("/api/users", userRoutes);
-
-app.get("/", (req, res) => {
-  res.send("Server running");
-});
-
 const PORT = process.env.PORT || 5000;
 
+// Middleware
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+app.use(express.json());
+
+// Routes
+app.use('/api/users', userRoutes);
+
+// Health check endpoint (keep this for testing)
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    message: 'Server is running!',
+    timestamp: new Date(),
+    database: 'Connected'
+  });
+});
+
+// Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

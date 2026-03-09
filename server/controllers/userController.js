@@ -1,90 +1,184 @@
-import User from "../models/User.js";
-import bcrypt from "bcrypt";
+import User from '../models/User.js';
+import bcrypt from 'bcrypt';
 
-// Register User
+// @desc    Register a new user
+// @route   POST /api/users/register
+// @access  Public
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: "Email already exists" });
+    // 1. Validate all required fields are provided
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields: name, email, and password'
+      });
     }
 
-    // hash password
+    // 2. Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+    }
+
+    // 3. Hash the password for security
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = new User({
+    // 4. Create new user with hashed password
+    const user = await User.create({
       name,
       email,
       password: hashedPassword
     });
 
-    await user.save();
+    // 5. Remove password from response
+    user.password = undefined;
 
+    // 6. Send success response
     res.status(201).json({
-      message: "User registered successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email
-      }
+      success: true,
+      message: 'User registered successfully',
+      data: user
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration',
+      error: error.message
+    });
   }
 };
 
-// Get all users
-export const getUsers = async (req, res) => {
+// @desc    Get all users
+// @route   GET /api/users
+// @access  Public (will be protected later with auth)
+export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password");
-    res.json(users);
+    // Fetch all users, excluding password field
+    const users = await User.find().select('-password');
+    
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      data: users
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching users',
+      error: error.message
+    });
   }
 };
 
-// Get user by ID
+// @desc    Get single user by ID
+// @route   GET /api/users/:id
+// @access  Public (will be protected later)
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-password");
+    const { id } = req.params;
 
+    // Find user by ID, excluding password
+    const user = await User.findById(id).select('-password');
+
+    // Check if user exists
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
-    res.json(user);
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user',
+      error: error.message
+    });
   }
 };
 
-// Update user
+// @desc    Update user
+// @route   PUT /api/users/:id
+// @access  Private (will add auth later)
 export const updateUser = async (req, res) => {
   try {
+    const { id } = req.params;
     const { name, email } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { name, email },
-      { new: true }
-    ).select("-password");
+    // Find user
+    const user = await User.findById(id);
 
-    res.json(user);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update fields if provided
+    if (name) user.name = name;
+    if (email) user.email = email;
+
+    // Save updated user
+    await user.save();
+
+    // Remove password from response
+    user.password = undefined;
+
+    res.status(200).json({
+      success: true,
+      message: 'User updated successfully',
+      data: user
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error updating user',
+      error: error.message
+    });
   }
 };
 
-// Delete user
+// @desc    Delete user
+// @route   DELETE /api/users/:id
+// @access  Private (will add auth later)
 export const deleteUser = async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.params.id);
-    res.json({ message: "User deleted successfully" });
+    const { id } = req.params;
+
+    // Find and delete user
+    const user = await User.findByIdAndDelete(id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting user',
+      error: error.message
+    });
   }
 };
