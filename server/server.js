@@ -4,23 +4,24 @@ import cors from 'cors';
 import connectDB from './config/database.js';
 import userRoutes from './routes/userRoutes.js';
 import authRoutes from './routes/authRoutes.js'; // Add this import
-
+import postRoutes from './routes/postRoutes.js'; // Add this import
 dotenv.config();
 connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+app.use(express.json());
 
 // Middleware
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true
 }));
-app.use(express.json());
 
 // Routes
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes); // Add this line
+app.use('/api/posts', postRoutes); // Add this line
 
 // Health check
 app.get('/api/health', (req, res) => {
