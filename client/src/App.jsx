@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext'; // Import
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import PublicRoute from './components/common/PublicRoute';
 import Header from './components/layout/Header';
@@ -9,10 +11,12 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import CreatePost from './pages/CreatePost';
+import EditPost from './pages/EditPost';
 
 function App() {
   return (
     <BrowserRouter>
+      <ToastContainer />
       <AuthProvider>
         <div style={appStyle}>
           {/* Header appears on all pages */}
@@ -52,7 +56,7 @@ function App() {
                 } 
               />
 
-               {/* <Route 
+              {/* <Route 
                 path="/profile" 
                 element={
                   <ProtectedRoute>
@@ -68,7 +72,16 @@ function App() {
                     <CreatePost />
                   </ProtectedRoute>
                 } 
-              /> 
+              />
+
+              <Route 
+                path="/edit/:id" 
+                element={
+                  <ProtectedRoute>
+                    <EditPost />
+                  </ProtectedRoute>
+                } 
+              />
             </Routes>
           </main>
 

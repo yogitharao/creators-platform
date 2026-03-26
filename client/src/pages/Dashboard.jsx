@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import socket from '../services/socket';
 import api from '../services/api';
+import { toast } from 'react-toastify';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -15,6 +17,34 @@ const Dashboard = () => {
   useEffect(() => {
     fetchPosts(currentPage);
   }, [currentPage]);
+
+  useEffect(() => {
+    // Connect when component mounts (user is logged in)
+    socket.connect();
+
+    // Listen for successful connection
+    socket.on('connect', () => {
+      console.log('🔌 Socket connected:', socket.id);
+    });
+
+    // Listen for disconnection
+    socket.on('disconnect', (reason) => {
+      console.log('❌ Socket disconnected:', reason);
+    });
+
+    // Listen for connection errors
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error.message);
+    });
+
+    // Cleanup when component unmounts
+    return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
+      socket.disconnect();
+    };
+  }, []);
 
   const fetchPosts = async (page) => {
     setIsLoading(true);
@@ -30,6 +60,39 @@ const Dashboard = () => {
       console.error(err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (postId) => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this post? This action cannot be undone.'
+    );
+
+    if (!confirmed) {
+      return; // User cancelled
+    }
+
+    try {
+      const response = await api.delete(`/api/posts/${postId}`);
+
+      if (response.data.success) {
+        // Remove post from UI immediately (optimistic update)
+        setPosts(posts.filter(post => post._id !== postId));
+        
+        // Update pagination count
+        setPagination(prev => ({
+          ...prev,
+          total: prev.total - 1
+        }));
+
+        // Show success toast
+        toast.success('Post deleted successfully');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      // Interceptor will show toast; set inline error state if needed
+      setError(error.response?.data?.message || 'Failed to delete post');
     }
   };
 
@@ -67,10 +130,31 @@ const Dashboard = () => {
           <>
             {posts.map((post) => (
               <div key={post._id} style={postCardStyle}>
+                {post.coverImage && (
+                  <img
+                    src={post.coverImage}
+                    alt={`Cover image for ${post.title}`}
+                    style={coverImageStyle}
+                  />
+                )}
                 <h3>{post.title}</h3>
                 <p style={contentPreviewStyle}>
                   {post.content.substring(0, 150)}...
                 </p>
+                <div style={actionsStyle}>
+                  <Link to={`/edit/${post._id}`}>
+                    <button style={editButtonStyle}>
+                      Edit
+                    </button>
+                  </Link>
+                  
+                  <button 
+                    onClick={() => handleDelete(post._id)}
+                    style={deleteButtonStyle}
+                  >
+                    Delete
+                  </button>
+                </div>
                 <div style={metaStyle}>
                   <span>{post.category}</span>
                   <span>{post.status}</span>
@@ -198,6 +282,14 @@ const postCardStyle = {
   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
 };
 
+const coverImageStyle = {
+  width: '100%',
+  maxHeight: '220px',
+  objectFit: 'cover',
+  borderRadius: '6px',
+  marginBottom: '0.75rem',
+};
+
 const contentPreviewStyle = {
   color: '#666',
   margin: '1rem 0',
@@ -240,6 +332,31 @@ const emptyStateStyle = {
   borderRadius: '8px',
   boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
   color: '#666',
+};
+
+const actionsStyle = {
+  display: 'flex',
+  gap: '1rem',
+  marginTop: '1rem',
+};
+
+const deleteButtonStyle = {
+  padding: '0.5rem 1rem',
+  backgroundColor: '#dc3545',
+  color: 'white',
+  border: 'none',
+  borderRadius: '5px',
+  cursor: 'pointer',
+};
+
+const editButtonStyle = {
+  padding: '0.5rem 1rem',
+  backgroundColor: '#007bff',
+  color: 'white',
+  border: 'none',
+  borderRadius: '5px',
+  cursor: 'pointer',
+  textDecoration: 'none',
 };
 
 export default Dashboard;

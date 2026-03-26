@@ -1,23 +1,47 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { toast } from 'react-toastify';
-import ImageUpload from '../components/ImageUpload';
 
-const CreatePost = () => {
+const EditPost = () => {
+  const { id } = useParams(); // Get post ID from URL
+  const navigate = useNavigate();
+  
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    category: 'Technology',
-    status: 'draft'
+    category: '',
+    status: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  const [image, setImage] = useState(null);
-  const navigate = useNavigate();
-  const [uploading, setUploading] = useState(false);
-  const [coverImageUrl, setCoverImageUrl] = useState(null);
-  const [uploadError, setUploadError] = useState('');
+
+  // Fetch post data when component mounts
+  useEffect(() => {
+    fetchPost();
+  }, [id]);
+
+  const fetchPost = async () => {
+    try {
+      const response = await api.get(`/api/posts/${id}`);
+      const post = response.data.data;
+      
+      // Pre-fill form with existing data
+      setFormData({
+        title: post.title,
+        content: post.content,
+        category: post.category,
+        status: post.status
+      });
+      
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError(err.response?.data?.message || 'Failed to load post');
+      setIsLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -26,70 +50,38 @@ const CreatePost = () => {
     });
   };
 
-  const handleUpload = async (formData) => {
-    setUploading(true);
-    setUploadError('');
-
-    try {
-      const response = await api.post('/api/upload', formData);
-      // response.data should be: { success: true, url: "...", publicId: "..." }
-
-      setCoverImageUrl(response.data.url);
-      toast.success('Image uploaded successfully!');
-    } catch (error) {
-      const message = error.response?.data?.message || 'Image upload failed';
-      setUploadError(message);
-      toast.error(message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const { title, content } = formData;
-
-    // Basic validation
-    if (!title || !content) {
-      toast.error('Title and content are required');
-      return;
-    }
-
     setError('');
-    setIsLoading(true);
+    setIsSaving(true);
 
     try {
-      const postData = {
-        ...formData,
-        coverImage: coverImageUrl // null if no image uploaded
-      };
-
-      const response = await api.post('/api/posts', postData);
-
+      const response = await api.put(`/api/posts/${id}`, formData);
+      
       if (response.data.success) {
-        toast.success('Post created successfully');
-
-        // Reset the form
-        setFormData({ title: '', content: '', category: 'Technology', status: 'draft' });
-        setCoverImageUrl(null);
-
-        // Navigate to dashboard
+        // Redirect to dashboard after successful update
+        toast.success('Post updated successfully');
         navigate('/dashboard');
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to create post';
+      const msg = err.response?.data?.message || 'Failed to update post';
       setError(msg);
-      toast.error(msg);
-    } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
+
+  if (isLoading) {
+    return <div style={loadingStyle}>Loading post...</div>;
+  }
+
+  if (error && !formData.title) {
+    return <div style={errorPageStyle}>{error}</div>;
+  }
 
   return (
     <div style={containerStyle}>
       <div style={formContainerStyle}>
-        <h1>Create New Post</h1>
+        <h1>Edit Post</h1>
         
         {error && <div style={errorStyle}>{error}</div>}
 
@@ -102,7 +94,6 @@ const CreatePost = () => {
               name="title"
               value={formData.title}
               onChange={handleChange}
-              placeholder="Enter post title"
               required
               style={inputStyle}
             />
@@ -115,7 +106,6 @@ const CreatePost = () => {
               name="content"
               value={formData.content}
               onChange={handleChange}
-              placeholder="Write your post content..."
               rows="10"
               required
               style={textareaStyle}
@@ -152,26 +142,29 @@ const CreatePost = () => {
             </select>
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading || uploading}
-            style={buttonStyle}
-          >
-            {isLoading ? 'Creating...' : uploading ? 'Uploading...' : 'Create Post'}
-          </button>
+          {/* Action Buttons */}
+          <div style={buttonGroupStyle}>
+            <button 
+              type="button"
+              onClick={() => navigate('/dashboard')}
+              style={cancelButtonStyle}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              disabled={isSaving}
+              style={submitButtonStyle}
+            >
+              {isSaving ? 'Saving...' : 'Update Post'}
+            </button>
+          </div>
         </form>
-        {uploadError && (
-          <p style={{ color: 'red' }}>
-            {uploadError}
-          </p>
-        )}
-        <ImageUpload onUpload={handleUpload} />
       </div>
     </div>
   );
 };
 
-// Styles (inspired by Dashboard.jsx)
 const containerStyle = {
   minHeight: '80vh',
   padding: '2rem',
@@ -231,6 +224,27 @@ const buttonStyle = {
   boxShadow: '0 2px 6px rgba(0,123,255,0.12)',
 };
 
+const buttonGroupStyle = {
+  display: 'flex',
+  gap: '1rem',
+  justifyContent: 'flex-end',
+  marginTop: '1rem',
+};
+
+const cancelButtonStyle = {
+  padding: '0.6rem 1.2rem',
+  backgroundColor: '#6c757d',
+  color: 'white',
+  border: 'none',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  fontWeight: 600,
+};
+
+const submitButtonStyle = {
+  ...buttonStyle,
+};
+
 const errorStyle = {
   margin: '1rem 0',
   padding: '0.75rem 1rem',
@@ -240,4 +254,13 @@ const errorStyle = {
   border: '1px solid #f5c2c7',
 };
 
-export default CreatePost;
+const loadingStyle = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  minHeight: '80vh',
+  fontSize: '1.2rem',
+  color: '#666',
+};
+
+export default EditPost;

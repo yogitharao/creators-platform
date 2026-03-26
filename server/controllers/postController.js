@@ -1,18 +1,16 @@
 import Post from '../models/Post.js';
+import ApiError from '../utils/ApiError.js';
 
 // @desc    Create new post
 // @route   POST /api/posts
 // @access  Private
-export const createPost = async (req, res) => {
+export const createPost = async (req, res, next) => {
   try {
-    const { title, content, category, status } = req.body;
+    const { title, content, category, status, coverImage } = req.body;
 
     // Validate required fields
     if (!title || !content) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide title and content'
-      });
+      throw new ApiError(400, 'Please provide title and content');
     }
 
     // Create post with authenticated user as author
@@ -21,6 +19,7 @@ export const createPost = async (req, res) => {
       content,
       category,
       status,
+      coverImage,
       author: req.user._id // From protect middleware
     });
 
@@ -32,18 +31,14 @@ export const createPost = async (req, res) => {
 
   } catch (error) {
     console.error('Create post error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error creating post',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Get posts with pagination
 // @route   GET /api/posts?page=1&limit=10
 // @access  Private
-export const getPosts = async (req, res) => {
+export const getPosts = async (req, res, next) => {
   try {
     // Get page and limit from query params (with defaults)
     const page = parseInt(req.query.page) || 1;
@@ -80,10 +75,107 @@ export const getPosts = async (req, res) => {
 
   } catch (error) {
     console.error('Get posts error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching posts',
-      error: error.message
+    next(error);
+  }
+};
+
+// @desc    Delete post
+// @route   DELETE /api/posts/:id
+// @access  Private
+export const deletePost = async (req, res, next) => {
+  try {
+    const post = await Post.findById(req.params.id);
+
+    // Check if post exists
+    if (!post) {
+      throw new ApiError(404, 'Post not found');
+    }
+
+    // Check ownership - CRITICAL SECURITY CHECK
+    if (post.author.toString() !== req.user._id.toString()) {
+      throw new ApiError(403, 'Not authorized to delete this post');
+    }
+
+    // Delete the post
+    await post.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'Post deleted successfully',
+      data: { id: req.params.id }
     });
+
+  } catch (error) {
+    console.error('Delete post error:', error);
+    next(error);
+  }
+};
+
+// @desc    Update post
+// @route   PUT /api/posts/:id
+// @access  Private
+export const updatePost = async (req, res, next) => {
+  try {
+    const post = await Post.findById(req.params.id);
+
+    // Check if post exists
+    if (!post) {
+      throw new ApiError(404, 'Post not found');
+    }
+
+    // Check ownership - CRITICAL SECURITY CHECK
+    if (post.author.toString() !== req.user._id.toString()) {
+      throw new ApiError(403, 'Not authorized to update this post');
+    }
+
+    // Update fields
+    const { title, content, category, status, coverImage } = req.body;
+    
+    if (title) post.title = title;
+    if (content) post.content = content;
+    if (category) post.category = category;
+    if (status) post.status = status;
+    if (coverImage) post.coverImage = coverImage;
+
+    // Save updated post
+    const updatedPost = await post.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Post updated successfully',
+      data: updatedPost
+    });
+
+  } catch (error) {
+    console.error('Update post error:', error);
+    next(error);
+  }
+};
+
+// @desc    Get single post by ID
+// @route   GET /api/posts/:id
+// @access  Private
+export const getPostById = async (req, res, next) => {
+  try {
+    const post = await Post.findById(req.params.id)
+      .populate('author', 'name email');
+
+    if (!post) {
+      throw new ApiError(404, 'Post not found');
+    }
+
+    // Check ownership
+    if (post.author._id.toString() !== req.user._id.toString()) {
+      throw new ApiError(403, 'Not authorized to view this post');
+    }
+
+    res.status(200).json({
+      success: true,
+      data: post
+    });
+
+  } catch (error) {
+    console.error('Get post error:', error);
+    next(error);
   }
 };
