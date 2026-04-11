@@ -1,10 +1,11 @@
-import Post from '../models/Post.js';
-import ApiError from '../utils/ApiError.js';
+const Post = require('../models/Post');
+const ApiError = require('../utils/ApiError');
+const { getIO } = require('../utils/socket');
 
 // @desc    Create new post
 // @route   POST /api/posts
 // @access  Private
-export const createPost = async (req, res, next) => {
+const createPost = async (req, res, next) => {
   try {
     const { title, content, category, status, coverImage } = req.body;
 
@@ -23,6 +24,23 @@ export const createPost = async (req, res, next) => {
       author: req.user._id // From protect middleware
     });
 
+    // Emit real-time event to connected clients about the new post
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit('newPost', {
+          message: `New post created by ${req.user?.name ?? 'someone'}`,
+          post: {
+            id: post._id,
+            title: post.title,
+            author: req.user?.name ?? ''
+          }
+        });
+      }
+    } catch (emitErr) {
+      console.error('Error emitting newPost event:', emitErr);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Post created successfully',
@@ -38,7 +56,7 @@ export const createPost = async (req, res, next) => {
 // @desc    Get posts with pagination
 // @route   GET /api/posts?page=1&limit=10
 // @access  Private
-export const getPosts = async (req, res, next) => {
+const getPosts = async (req, res, next) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.max(parseInt(req.query.limit) || 20, 1);
@@ -74,7 +92,7 @@ export const getPosts = async (req, res, next) => {
 // @desc    Delete post
 // @route   DELETE /api/posts/:id
 // @access  Private
-export const deletePost = async (req, res, next) => {
+const deletePost = async (req, res, next) => {
   try {
     const post = await Post.findById(req.params.id);
 
@@ -91,6 +109,19 @@ export const deletePost = async (req, res, next) => {
     // Delete the post
     await post.deleteOne();
 
+    // Emit deletion event to clients
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit('deletePost', {
+          message: `A post was deleted`,
+          id: req.params.id
+        });
+      }
+    } catch (emitErr) {
+      console.error('Error emitting deletePost event:', emitErr);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Post deleted successfully',
@@ -106,7 +137,7 @@ export const deletePost = async (req, res, next) => {
 // @desc    Update post
 // @route   PUT /api/posts/:id
 // @access  Private
-export const updatePost = async (req, res, next) => {
+const updatePost = async (req, res, next) => {
   try {
     const post = await Post.findById(req.params.id);
 
@@ -122,15 +153,35 @@ export const updatePost = async (req, res, next) => {
 
     // Update fields
     const { title, content, category, status, coverImage } = req.body;
-    
+
     if (title) post.title = title;
     if (content) post.content = content;
     if (category) post.category = category;
     if (status) post.status = status;
-    if (coverImage) post.coverImage = coverImage;
+
+    // Allow clearing the coverImage when the client explicitly provides null or empty string
+    if (Object.prototype.hasOwnProperty.call(req.body, 'coverImage')) {
+      post.coverImage = coverImage || null;
+    }
 
     // Save updated post
     const updatedPost = await post.save();
+
+    // Emit update event to clients
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit('updatePost', {
+          message: `Post updated by ${req.user?.name ?? 'someone'}`,
+          post: {
+            id: updatedPost._id,
+            title: updatedPost.title
+          }
+        });
+      }
+    } catch (emitErr) {
+      console.error('Error emitting updatePost event:', emitErr);
+    }
 
     res.status(200).json({
       success: true,
@@ -147,7 +198,7 @@ export const updatePost = async (req, res, next) => {
 // @desc    Get single post by ID
 // @route   GET /api/posts/:id
 // @access  Private
-export const getPostById = async (req, res, next) => {
+const getPostById = async (req, res, next) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate('author', 'name email avatar')
@@ -162,4 +213,12 @@ export const getPostById = async (req, res, next) => {
     console.error('Get post by id error:', error);
     next(error);
   }
+};
+
+module.exports = {
+  createPost,
+  getPosts,
+  deletePost,
+  updatePost,
+  getPostById
 };
