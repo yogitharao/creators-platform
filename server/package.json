@@ -26,10 +26,14 @@
     "socket.io": "^4.8.3"
   },
   "jest": {
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/jest.setup.js"
+    ]
   },
   "devDependencies": {
     "jest": "^30.3.0",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "mongodb-memory-server": "^8.12.3"
   }
 }
